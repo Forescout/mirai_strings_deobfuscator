@@ -8,8 +8,7 @@ The purpose of the tool is our initial attempt to systematize the heuristics
 for deobfuscating strings specific to various Mirai variants, and to create a
 lightweight script that can be plugged into an automated malware analysis
 pipeline. This tool does not attempt to replace [well-known general-purpose
-tools for defeating XOR obfuscation]
-(https://www.sans.org/blog/tools-for-examining-xor-obfuscation-for-malware-analysis/).
+tools for defeating XOR obfuscation](https://www.sans.org/blog/tools-for-examining-xor-obfuscation-for-malware-analysis/).
 
 # Running the tool
 
