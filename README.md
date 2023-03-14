@@ -1,8 +1,11 @@
-# Mirai decryptor
+# Mirai strings deobfuscator
 
 This tool provides a simple and easy way to retrieve obfuscated strings from
 various Mirai variants: you simply need to run the script against a Mirai
 sample, and you should get de-obfuscated strings as the output.
+
+NOTE: the tool works only against unpacked samples (you'll need to use other
+tools first, if the sample is packed with, e.g., UPX).
 
 The purpose of the tool is our initial attempt to systematize the heuristics
 for deobfuscating strings specific to various Mirai variants, and to create a

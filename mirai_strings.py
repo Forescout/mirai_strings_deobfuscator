@@ -43,7 +43,9 @@ reproducing the content of the copyright notice.
 import sys
 import string
 import argparse
+import traceback
 from elftools.elf.elffile import ELFFile
+from elftools.common.exceptions import ELFError
 
 # Just a bunch of previously used XOR keys
 KNOWN_XOR_KEYS = [
@@ -102,6 +104,8 @@ def search_elf_file_for_stacked_strings(binary_path, section_name='.text'):
     with open(binary_path, 'rb') as _file:
         elffile = ELFFile(_file)
         sec = elffile.get_section_by_name(section_name)
+        if sec == None:
+            raise ELFError(f'Failed to retrieve any data from the {section_name} section')
         strings = get_stacked_strings(list(sec.data()), [0xc6, 0x84, 0x24], 8, 0x00)
     return strings
 
@@ -112,6 +116,8 @@ def get_strings_from_section(binary_path, section_name='.rodata'):
         sec = elffile.get_section_by_name(section_name)
         strings = []
         string = []
+        if sec == None:
+            raise ELFError(f'Failed to retrieve any data from the {section_name} section')
         for byte in sec.data():
             if byte == 0x00:
                 string.append(byte)
@@ -144,7 +150,8 @@ def print_strings_retrieved_with_known_keys(strings):
             decrypted_string = xor_bytes(s, xor_key)
             decrypted_string[len(decrypted_string)-1] = chr(ord(decrypted_string[len(decrypted_string)-1]) ^ xor_key)
             decrypted_string = get_printable_string(decrypted_string)
-            print(decrypted_string)
+            if decrypted_string != '':
+                print(decrypted_string)
 
 def print_strings_retrieved_with_heuristics(strings):
     for s in strings:
@@ -152,7 +159,8 @@ def print_strings_retrieved_with_heuristics(strings):
         decrypted_string = xor_bytes(s, xor_key)
         decrypted_string[len(decrypted_string)-1] = chr(ord(decrypted_string[len(decrypted_string)-1]) ^ xor_key)
         decrypted_string = get_printable_string(decrypted_string)
-        print(decrypted_string)
+        if decrypted_string != '':
+            print(decrypted_string)
 
 def print_strings_satori(strings):
     table_1_dec = [chr(x ^ TABLE_XOR_KEY) for x in TABLE_1]
@@ -161,7 +169,8 @@ def print_strings_satori(strings):
     for s in strings:
         decrypted_string = decrypt_with_substitution_tables(s, table_1_dec, table_2_dec)
         decrypted_string = get_printable_string(decrypted_string)
-        print(decrypted_string)
+        if decrypted_string != '':
+            print(decrypted_string)
 
 def print_strings_rapperbot(strings):
     for hex_str in strings:
@@ -180,33 +189,43 @@ if __name__ == '__main__':
     arg_parser.add_argument('--rapperbot', dest='rapperbot', action='store_true', help='Retrieve stacked strings (some of RapperBot variants, x86 only).')
     args = arg_parser.parse_args()
 
-    if not args.file_path:
-        print('ERROR: You must specify the file path of the malware sample to retrieve the strings from.')
-        arg_parser.print_help()
-        sys.exit(1)
+    try:
+        if not args.file_path:
+            print('ERROR: You must specify the file path of the malware sample to retrieve the strings from.')
+            arg_parser.print_help()
+            sys.exit(1)
 
-    # If you don't specify any parameters, all de-obfuscation methods will be used
-    if args.plain == args.known_keys == args.heuristic == args.satori == args.rapperbot == False:
-        args.plain = args.known_keys = args.heuristic = args.satori = args.rapperbot = True
+        # If you don't specify any parameters, all de-obfuscation methods will be used
+        if args.plain == args.known_keys == args.heuristic == args.satori == args.rapperbot == False:
+            args.plain = args.known_keys = args.heuristic = args.satori = args.rapperbot = True
 
-    if args.rapperbot:
-        strings = search_elf_file_for_stacked_strings(args.file_path)
-        print_strings_rapperbot(strings)
+        if args.rapperbot:
+            strings = search_elf_file_for_stacked_strings(args.file_path)
+            if strings == None:
+                print('ERROR: Failed to find strings in the .text section.')
+            else:
+                print_strings_rapperbot(strings)
 
-    strings = get_strings_from_section(args.file_path, '.rodata')
-    if strings == None:
-        print('ERROR: Failed to read the contents of the .rodata section.')
-        sys.exit(1) 
+        strings = get_strings_from_section(args.file_path, '.rodata')
+        if strings == None:
+            print('ERROR: Failed to find strings in the .rodata section.')
+            sys.exit(1)
 
-    if args.plain:
-        print_plaintext_strings(strings)
+        if args.plain:
+            print_plaintext_strings(strings)
 
-    if args.known_keys:
-        print_strings_retrieved_with_known_keys(strings)
+        if args.known_keys:
+            print_strings_retrieved_with_known_keys(strings)
 
-    if args.heuristic:
-        print_strings_retrieved_with_heuristics(strings)
+        if args.heuristic:
+            print_strings_retrieved_with_heuristics(strings)
 
-    if args.satori:
-        print_strings_satori(strings)
+        if args.satori:
+            print_strings_satori(strings)
 
+    except ELFError as elf_ex:
+        print(f'ERROR while reading an ELF file "{args.file_path}": {elf_ex}')
+
+    except Exception as generic_ex:
+        print(f'ERROR: {generic_ex}')
+        traceback.print_exc()
