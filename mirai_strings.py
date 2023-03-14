@@ -1,45 +1,3 @@
-'''
-Copyright (C) 2023 Forescout Technologies, Inc.
-
-Program License
-
-"The Program" refers to any copyrightable work licensed under this License. Each
-licensee is addressed as "you."
-
-All rights granted under this License are granted for the term of copyright on
-the Program, and are irrevocable provided the stated conditions are met. This
-License explicitly affirms your unlimited permission to run the unmodified
-Program for personal, governmental, business or non-profit use. You are
-prohibited from using the Program in derivative works for commercial purposes.
-You are prohibited from modifying the Program to be used in a commercial product
-or service, either alone or in conjunction with other code, either downloadable
-or accessed as a service. "Derivative works" shall mean any work, whether in
-source or object form, that is based on (or derived from) the Program and for
-which the editorial revisions, annotations, elaborations, or other modifications
-represent, as a whole, an original work of authorship.
-
-You may convey verbatim copies of the Program's source code as you receive it,
-in any medium, provided that you conspicuously and appropriately publish on each
-copy an appropriate copyright notice; keep intact all notices stating that this
-License applies to the code; keep intact all notices of the absence of any
-warranty; give all recipients a copy of this License along with the Program; and
-do not financially benefit from the sale or other conveyance of the Program
-either alone or in conjunction with other code, downloaded or accessed as a
-service.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-This License does not grant permission to use the trade names, trademarks,
-service marks, or product names of the Licensor, except as required for
-reasonable and customary use in describing the origin of the Program and
-reproducing the content of the copyright notice.
-'''
-
 import sys
 import string
 import argparse
@@ -105,7 +63,7 @@ def search_elf_file_for_stacked_strings(binary_path, section_name='.text'):
         strings = get_stacked_strings(list(sec.data()), [0xc6, 0x84, 0x24], 8, 0x00)
     return strings
 
-def get_strings(binary_path, section_name='.rodata'):
+def get_strings_from_section(binary_path, section_name='.rodata'):
     strings = None
     with open(binary_path, 'rb') as _file:
         elffile = ELFFile(_file)
@@ -122,55 +80,53 @@ def get_strings(binary_path, section_name='.rodata'):
                 string.append(byte)
     return strings
 
-JUNK_STR_LEN = 3
-
-def print_plaintext_strings(strings):
-    for s in strings:
+def print_plaintext_strings(hex_strings):
+    for s in hex_strings:
         s_chr = [chr(x) for x in s]
         s = ''.join(s_chr)
-        printable_chars = set(string.printable)
-        s = filter(lambda x: x in printable_chars, s)
-        s = ''.join(s).replace('\r', ' ').replace('\n', '')
-        if len(s.replace(' ', '')) > JUNK_STR_LEN:
-            print(s)
+        s = get_printable_string(s)
+        print(s)
+
+def get_printable_string(hex_string):
+    printable_chars = set(string.printable)
+    hex_string = filter(lambda x: x in printable_chars, hex_string)
+    hex_string = ''.join(hex_string).replace('\f', '').replace('\t', '').replace('\a', '').replace('\n', '')
+    return hex_string
 
 def print_strings_retrieved_with_known_keys(strings):
     for xor_key in KNOWN_XOR_KEYS:
-        for string in strings:
-            if len(string) < 3:
+        for s in strings:
+            if len(s) < 3:
                 continue
-            decrypted_string = xor_bytes(string, xor_key)
+
+            decrypted_string = xor_bytes(s, xor_key)
             decrypted_string[len(decrypted_string)-1] = chr(ord(decrypted_string[len(decrypted_string)-1]) ^ xor_key)
-            decrypted_string = ''.join(decrypted_string).rstrip('\x00')
-            if len(decrypted_string) > JUNK_STR_LEN and not '\\x' in repr(decrypted_string):
-                print(decrypted_string)
+            decrypted_string = get_printable_string(decrypted_string)
+            print(decrypted_string)
 
 def print_strings_retrieved_with_heuristics(strings):
-    for string in strings:
-        xor_key = string[len(string)-2]
-        decrypted_string = xor_bytes(string, xor_key)
+    for s in strings:
+        xor_key = s[len(s)-2]
+        decrypted_string = xor_bytes(s, xor_key)
         decrypted_string[len(decrypted_string)-1] = chr(ord(decrypted_string[len(decrypted_string)-1]) ^ xor_key)
-        decrypted_string = ''.join(decrypted_string).rstrip('\x00')
-        if len(decrypted_string) > JUNK_STR_LEN and not '\\x' in repr(decrypted_string):
-            print(decrypted_string)
+        decrypted_string = get_printable_string(decrypted_string)
+        print(decrypted_string)
 
 def print_strings_satori(strings):
     table_1_dec = [chr(x ^ TABLE_XOR_KEY) for x in TABLE_1]
     table_2_dec = [chr(x ^ TABLE_XOR_KEY) for x in TABLE_2]
 
     for s in strings:
-        dec_str = decrypt_with_substitution_tables(s, table_1_dec, table_2_dec)
-        dec_str = ''.join(dec_str)
-        if len(dec_str) > JUNK_STR_LEN and not '\\x' in repr(dec_str):
-            print(dec_str)
+        decrypted_string = decrypt_with_substitution_tables(s, table_1_dec, table_2_dec)
+        decrypted_string = get_printable_string(decrypted_string)
+        print(decrypted_string)
 
 def print_strings_rapperbot(strings):
-    for string in strings:
-        if string != []:
-            kek = [chr(x) for x in string]
-            kek = ''.join(kek)
-            if len(kek) > JUNK_STR_LEN:
-                print(kek)
+    for hex_str in strings:
+        if hex_str != []:
+            s = [chr(x) for x in hex_str]
+            s = ''.join(s)
+            print(s)
 
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
@@ -195,7 +151,7 @@ if __name__ == '__main__':
         strings = search_elf_file_for_stacked_strings(args.file_path)
         print_strings_rapperbot(strings)
 
-    strings = get_strings(args.file_path, '.rodata')
+    strings = get_strings_from_section(args.file_path, '.rodata')
     if strings == None:
         print('ERROR: Failed to read the contents of the .rodata section.')
         sys.exit(1) 
