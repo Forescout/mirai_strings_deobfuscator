@@ -133,7 +133,8 @@ def print_plaintext_strings(hex_strings):
         s_chr = [chr(x) for x in s]
         s = ''.join(s_chr)
         s = get_printable_string(s)
-        print(s)
+        if s != '':
+            print(s)
 
 def get_printable_string(hex_string):
     printable_chars = set(string.printable)
@@ -177,7 +178,9 @@ def print_strings_rapperbot(strings):
         if hex_str != []:
             s = [chr(x) for x in hex_str]
             s = ''.join(s)
-            print(s)
+            s = get_printable_string(s)
+            if s != '':
+                print(s)
 
 if __name__ == '__main__':
     arg_parser = argparse.ArgumentParser()
